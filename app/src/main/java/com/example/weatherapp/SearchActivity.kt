@@ -92,11 +92,13 @@ class SearchActivity: AppCompatActivity() {
 
         homeButton.setOnClickListener {
             val intent = Intent(this, HomeActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
         }
 
         historyButton.setOnClickListener {
             val intent = Intent(this, HistoryActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
         }
     }
