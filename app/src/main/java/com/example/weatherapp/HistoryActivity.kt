@@ -1,6 +1,7 @@
 package com.example.weatherapp
 
 import android.content.Context
+import android.content.Intent
 import android.location.Address
 import android.location.Geocoder
 import android.os.Bundle
@@ -24,19 +25,26 @@ import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
+import com.github.mikephil.charting.formatter.ValueFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class HistoryActivity: AppCompatActivity() {
     private lateinit var inputCountry: EditText
     private lateinit var searchBut: Button
     private lateinit var historicalWeatherGraph: LineChart
+    private lateinit var homeButton: Button
+    private lateinit var searchButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.history)
 
         inputCountry = findViewById(R.id.inputCountry)
-        searchBut = findViewById(R.id.searchButton)
+        searchBut = findViewById(R.id.searchBut)
         historicalWeatherGraph = findViewById(R.id.graph)
+        homeButton = findViewById(R.id.homeButton)
+        searchButton = findViewById(R.id.searchButton)
 
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
@@ -44,6 +52,16 @@ class HistoryActivity: AppCompatActivity() {
             val latitude = latLng.first
             val longitude = latLng.second
             getWeather(latitude, longitude)
+        }
+
+        homeButton.setOnClickListener {
+            val intent = Intent(this, HomeActivity::class.java)
+            startActivity(intent)
+        }
+
+        searchButton.setOnClickListener {
+            val intent = Intent(this, SearchActivity::class.java)
+            startActivity(intent)
         }
     }
 
@@ -89,7 +107,14 @@ class HistoryActivity: AppCompatActivity() {
                         val historicalWeatherData = parseWeatherData(body)
 
                         val time = historicalWeatherData.daily.time
+                        // Check if all the years are present (2014 - 2024)
+                        if (time.size != 3652) {
+                            Log.e("HistoryActivity", "Data is missing for some years")
+                        }
+
                         val avgTemp = historicalWeatherData.daily.temperature_2m_mean
+                        Log.d("HistoryActivity", "Time: $time")
+                        Log.d("HistoryActivity", "Avg Temp: $avgTemp")
                         plotGraph(time, avgTemp)
                     } else {
                         Log.e("MainActivity", "Failed to get weather data: ${response.message}")
@@ -104,16 +129,29 @@ class HistoryActivity: AppCompatActivity() {
         return gson.fromJson(tempBody, historicalWeather::class.java)
     }
 
-
     private fun plotGraph(time: List<String>, avgTemp: List<Double>) {
         val entries = ArrayList<Entry>()
         for (i in time.indices) {
-            entries.add(Entry(i.toFloat(), avgTemp[i].toFloat()))
+            // Convert time string to milliseconds
+            val timeInMillis = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(time[i])?.time?.toFloat() ?: 0f
+            entries.add(Entry(timeInMillis, avgTemp[i].toFloat()))
         }
 
         val dataSet = LineDataSet(entries, "Average Temperature")
         val lineData = LineData(dataSet)
         historicalWeatherGraph.data = lineData
+
+        // Set custom formatter for x-axis to format time
+        val xAxis = historicalWeatherGraph.xAxis
+        xAxis.valueFormatter = object : ValueFormatter() {
+            private val dateFormat = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+
+            override fun getFormattedValue(value: Float): String {
+                return dateFormat.format(Date(value.toLong()))
+            }
+        }
+
         historicalWeatherGraph.invalidate()
     }
+
 }
