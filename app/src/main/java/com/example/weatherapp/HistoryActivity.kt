@@ -20,10 +20,15 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 import java.util.Locale
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
 
 class HistoryActivity: AppCompatActivity() {
     private lateinit var inputCountry: EditText
     private lateinit var searchBut: Button
+    private lateinit var historicalWeatherGraph: LineChart
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,6 +36,7 @@ class HistoryActivity: AppCompatActivity() {
 
         inputCountry = findViewById(R.id.inputCountry)
         searchBut = findViewById(R.id.searchButton)
+        historicalWeatherGraph = findViewById(R.id.graph)
 
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
@@ -84,8 +90,7 @@ class HistoryActivity: AppCompatActivity() {
 
                         val time = historicalWeatherData.daily.time
                         val avgTemp = historicalWeatherData.daily.temperature_2m_mean
-                        Log.d("Time", time.toString())
-                        Log.d("Average Temperature", avgTemp.toString())
+                        plotGraph(time, avgTemp)
                     } else {
                         Log.e("MainActivity", "Failed to get weather data: ${response.message}")
                     }
@@ -97,5 +102,18 @@ class HistoryActivity: AppCompatActivity() {
     private fun parseWeatherData(tempBody: String): historicalWeather {
         val gson = Gson()
         return gson.fromJson(tempBody, historicalWeather::class.java)
+    }
+
+
+    private fun plotGraph(time: List<String>, avgTemp: List<Double>) {
+        val entries = ArrayList<Entry>()
+        for (i in time.indices) {
+            entries.add(Entry(i.toFloat(), avgTemp[i].toFloat()))
+        }
+
+        val dataSet = LineDataSet(entries, "Average Temperature")
+        val lineData = LineData(dataSet)
+        historicalWeatherGraph.data = lineData
+        historicalWeatherGraph.invalidate()
     }
 }
