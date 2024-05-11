@@ -1,5 +1,6 @@
 package com.example.weatherapp
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.location.Address
@@ -8,7 +9,11 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.weatherapp.database.WeatherData
+import com.example.weatherapp.database.WeatherDatabase
+import com.example.weatherapp.database.WeatherRepository
 import com.example.weatherapp.historicalWeather.historicalWeather
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +31,9 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 
 class HistoryActivity: AppCompatActivity() {
@@ -35,6 +42,10 @@ class HistoryActivity: AppCompatActivity() {
     private lateinit var historicalWeatherGraph: LineChart
     private lateinit var homeButton: Button
     private lateinit var searchButton: Button
+    private lateinit var weatherDataTextView: TextView
+
+    // database repository variable initialization
+    private lateinit var weatherRepository: WeatherRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,13 +56,17 @@ class HistoryActivity: AppCompatActivity() {
         historicalWeatherGraph = findViewById(R.id.graph)
         homeButton = findViewById(R.id.homeButton)
         searchButton = findViewById(R.id.searchButton)
+        weatherDataTextView = findViewById(R.id.weatherDataTextView)
+
+        // database repository
+        weatherRepository = WeatherRepository(WeatherDatabase.getInstance(this).weatherDao())
 
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
             val latLng = getLatLng(this, country)
             val latitude = latLng.first
             val longitude = latLng.second
-            getWeather(latitude, longitude)
+            getWeather(latitude, longitude, country)
         }
 
         homeButton.setOnClickListener {
@@ -67,6 +82,7 @@ class HistoryActivity: AppCompatActivity() {
             startActivity(intent)
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
+
     }
 
     override fun finish() {
@@ -92,9 +108,16 @@ class HistoryActivity: AppCompatActivity() {
         return Pair(latitude, longitude)
     }
 
-    private fun getWeather(latitude: Double, longitude: Double) {
-        val BASE_URL =
-            "https://archive-api.open-meteo.com/v1/archive?latitude=$latitude&longitude=$longitude&start_date=2014-01-01&end_date=2024-01-01&daily=temperature_2m_mean&timezone=auto"
+    private fun getWeather(latitude: Double, longitude: Double, country: String) {
+        val currentDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
+        val sdf = SimpleDateFormat("yyyy-MM-dd")
+        val c = Calendar.getInstance()
+        c.time = sdf.parse(currentDate)
+        c.add(Calendar.DATE, -10)
+        val previousDate = sdf.format(c.time)
+        Log.d("HistoryActivity", "Previous Date: $previousDate")
+
+        val BASE_URL = "https://archive-api.open-meteo.com/v1/archive?latitude=$latitude&longitude=$longitude&start_date=2013-01-01&end_date=$previousDate&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean&timezone=auto"
 
         val coroutineScope = CoroutineScope(Dispatchers.Main)
 
@@ -116,15 +139,32 @@ class HistoryActivity: AppCompatActivity() {
                         val historicalWeatherData = parseWeatherData(body)
 
                         val time = historicalWeatherData.daily.time
-                        // Check if all the years are present (2014 - 2024)
-                        if (time.size != 3652) {
-                            Log.e("HistoryActivity", "Data is missing for some years")
+//                        Log.d("HistoryActivity", "Time: $time")
+                        val avgTemp = historicalWeatherData.daily.temperature_2m_mean
+//                        Log.d("HistoryActivity", "Avg Temp: $avgTemp")
+                        val maxTemp = historicalWeatherData.daily.temperature_2m_max
+//                        Log.d("HistoryActivity", "Max Temp: $maxTemp")
+                        val minTemp = historicalWeatherData.daily.temperature_2m_min
+//                        Log.d("HistoryActivity", "Min Temp: $minTemp")
+
+                        for (i in time.indices) {
+                            val weatherData = WeatherData(
+                                location = country,
+                                date = time[i],
+                                temperature = avgTemp[i] ,
+                                minTemp = minTemp[i],
+                                maxTemp = maxTemp[i]
+                            )
+
+                            coroutineScope.launch {
+                                weatherRepository.insertWeatherData(weatherData)
+//                                Log.d("HistoryActivity", "Inserted weather data: $weatherData")
+                            }
                         }
 
-                        val avgTemp = historicalWeatherData.daily.temperature_2m_mean
-                        Log.d("HistoryActivity", "Time: $time")
-                        Log.d("HistoryActivity", "Avg Temp: $avgTemp")
-                        plotGraph(time, avgTemp)
+                        coroutineScope.launch {
+                            plotGraph()
+                        }
                     } else {
                         Log.e("MainActivity", "Failed to get weather data: ${response.message}")
                     }
@@ -138,27 +178,63 @@ class HistoryActivity: AppCompatActivity() {
         return gson.fromJson(tempBody, historicalWeather::class.java)
     }
 
-    private fun plotGraph(time: List<String>, avgTemp: List<Double>) {
-        val entries = ArrayList<Entry>()
-        for (i in time.indices) {
-            // Convert time string to milliseconds
-            val timeInMillis = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(time[i])?.time?.toFloat() ?: 0f
-            entries.add(Entry(timeInMillis, avgTemp[i].toFloat()))
+    private suspend fun plotGraph() {
+        weatherRepository.getAllWeatherData().let { weatherData ->
+            val entries = ArrayList<Entry>()
+            Log.d("HistoryActivity", "Weather data length: ${weatherData.size}")
+            for (i in weatherData.indices) {
+                entries.add(Entry(i.toFloat(), weatherData[i].temperature.toFloat()))
+            }
+
+            val lineDataSet = LineDataSet(entries, "Temperature")
+            lineDataSet.valueFormatter = object : ValueFormatter() {
+                override fun getFormattedValue(value: Float): String {
+                    return value.toString() + "°C"
+                }
+            }
+
+            val lineData = LineData(lineDataSet)
+            historicalWeatherGraph.data = lineData
+            historicalWeatherGraph.invalidate()
         }
 
-        val dataSet = LineDataSet(entries, "Average Temperature")
-        val lineData = LineData(dataSet)
-        historicalWeatherGraph.data = lineData
+        calculateAverage()
 
-        // Set custom formatter for x-axis to format time
-        val xAxis = historicalWeatherGraph.xAxis
-        xAxis.valueFormatter = object : ValueFormatter() {
-            private val dateFormat = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+    }
 
-            override fun getFormattedValue(value: Float): String {
-                return dateFormat.format(Date(value.toLong()))
+    private suspend fun calculateAverage() {
+        val currentDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
+        val sdf = SimpleDateFormat("yyyy-MM-dd")
+        val c = Calendar.getInstance()
+        c.time = sdf.parse(currentDate)
+        c.add(Calendar.YEAR, -1)
+        val previousDate = sdf.format(c.time)
+        Log.d("HistoryActivity", "Previous Date: $previousDate")
+
+        val currentYear = previousDate.substring(0, 4).toInt()
+        Log.d("HistoryActivity", "Current Year: $currentYear")
+        val startYear = currentYear
+        Log.d("HistoryActivity", "Start Year: $startYear")
+        val endYear = currentYear - 10
+        Log.d("HistoryActivity", "End Year: $endYear")
+
+        // Loop through each year from the current year to 10 years ago
+        val averageTemperatures = HashMap<String, Float>()
+        for (year in startYear downTo endYear) {
+            val date = "$year-" + previousDate.substring(5, 10)
+            Log.d("HistoryActivity", "Date: $date")
+
+            runBlocking {
+                // Retrieve temperature data for the current year
+                val data = weatherRepository.getWeatherDataByDate(date)
+                weatherDataTextView.text = "Average temperature for $date: ${data.temperature}°C"
             }
         }
-        historicalWeatherGraph.invalidate()
+    }
+
+    private fun updateUI(textView: TextView, data: String) {
+        runOnUiThread {
+            textView.text = data
+        }
     }
 }

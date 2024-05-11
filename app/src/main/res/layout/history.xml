@@ -40,6 +40,18 @@
         app:layout_constraintTop_toBottomOf="@+id/searchBut" />
 
     <!-- Footer layout -->
+
+    <TextView
+        android:id="@+id/weatherDataTextView"
+        android:layout_width="284dp"
+        android:layout_height="151dp"
+        app:layout_constraintBottom_toTopOf="@+id/view"
+        android:text="Historical Data"
+        android:gravity="center"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/graph" />
+
     <include
         layout="@layout/footer"
         android:layout_width="match_parent"
@@ -49,6 +61,7 @@
 
     <!-- Footer border -->
     <View
+        android:id="@+id/view"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@android:color/darker_gray"
