@@ -159,8 +159,6 @@ class HistoryActivity: AppCompatActivity() {
                 return dateFormat.format(Date(value.toLong()))
             }
         }
-
         historicalWeatherGraph.invalidate()
     }
-
 }
