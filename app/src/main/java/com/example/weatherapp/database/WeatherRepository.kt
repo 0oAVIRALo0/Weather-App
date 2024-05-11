@@ -9,7 +9,7 @@ class WeatherRepository(private val weatherDao: WeatherDao) {
         return weatherDao.getAllWeatherData()
     }
 
-    suspend fun getWeatherDataByDate(date: String): WeatherData {
-        return weatherDao.getWeatherDataByDate(date)
+    suspend fun getTemperatureByDate(date: String, location: String): Double? {
+        return weatherDao.getTemperatureByDate(date, location)
     }
 }

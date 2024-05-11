@@ -31,6 +31,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -47,6 +48,9 @@ class HistoryActivity: AppCompatActivity() {
     // database repository variable initialization
     private lateinit var weatherRepository: WeatherRepository
 
+    // Current Temperature
+    private var temp: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.history)
@@ -60,6 +64,8 @@ class HistoryActivity: AppCompatActivity() {
 
         // database repository
         weatherRepository = WeatherRepository(WeatherDatabase.getInstance(this).weatherDao())
+
+        temp = intent.getStringExtra("currentTemp")
 
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
@@ -115,7 +121,6 @@ class HistoryActivity: AppCompatActivity() {
         c.time = sdf.parse(currentDate)
         c.add(Calendar.DATE, -10)
         val previousDate = sdf.format(c.time)
-        Log.d("HistoryActivity", "Previous Date: $previousDate")
 
         val BASE_URL = "https://archive-api.open-meteo.com/v1/archive?latitude=$latitude&longitude=$longitude&start_date=2013-01-01&end_date=$previousDate&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean&timezone=auto"
 
@@ -139,13 +144,9 @@ class HistoryActivity: AppCompatActivity() {
                         val historicalWeatherData = parseWeatherData(body)
 
                         val time = historicalWeatherData.daily.time
-//                        Log.d("HistoryActivity", "Time: $time")
                         val avgTemp = historicalWeatherData.daily.temperature_2m_mean
-//                        Log.d("HistoryActivity", "Avg Temp: $avgTemp")
                         val maxTemp = historicalWeatherData.daily.temperature_2m_max
-//                        Log.d("HistoryActivity", "Max Temp: $maxTemp")
                         val minTemp = historicalWeatherData.daily.temperature_2m_min
-//                        Log.d("HistoryActivity", "Min Temp: $minTemp")
 
                         for (i in time.indices) {
                             val weatherData = WeatherData(
@@ -158,7 +159,6 @@ class HistoryActivity: AppCompatActivity() {
 
                             coroutineScope.launch {
                                 weatherRepository.insertWeatherData(weatherData)
-//                                Log.d("HistoryActivity", "Inserted weather data: $weatherData")
                             }
                         }
 
@@ -181,7 +181,6 @@ class HistoryActivity: AppCompatActivity() {
     private suspend fun plotGraph() {
         weatherRepository.getAllWeatherData().let { weatherData ->
             val entries = ArrayList<Entry>()
-            Log.d("HistoryActivity", "Weather data length: ${weatherData.size}")
             for (i in weatherData.indices) {
                 entries.add(Entry(i.toFloat(), weatherData[i].temperature.toFloat()))
             }
@@ -198,38 +197,51 @@ class HistoryActivity: AppCompatActivity() {
             historicalWeatherGraph.invalidate()
         }
 
-        calculateAverage()
+        getWeatherFor10Years()
 
     }
 
-    private suspend fun calculateAverage() {
+    private suspend fun getWeatherFor10Years() {
         val currentDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
         val sdf = SimpleDateFormat("yyyy-MM-dd")
         val c = Calendar.getInstance()
         c.time = sdf.parse(currentDate)
         c.add(Calendar.YEAR, -1)
         val previousDate = sdf.format(c.time)
-        Log.d("HistoryActivity", "Previous Date: $previousDate")
 
         val currentYear = previousDate.substring(0, 4).toInt()
-        Log.d("HistoryActivity", "Current Year: $currentYear")
         val startYear = currentYear
-        Log.d("HistoryActivity", "Start Year: $startYear")
         val endYear = currentYear - 10
-        Log.d("HistoryActivity", "End Year: $endYear")
 
         // Loop through each year from the current year to 10 years ago
         val averageTemperatures = HashMap<String, Float>()
-        for (year in startYear downTo endYear) {
+        for (year in endYear..startYear) {
             val date = "$year-" + previousDate.substring(5, 10)
             Log.d("HistoryActivity", "Date: $date")
 
-            runBlocking {
-                // Retrieve temperature data for the current year
-                val data = weatherRepository.getWeatherDataByDate(date)
-                weatherDataTextView.text = "Average temperature for $date: ${data.temperature}°C"
+            coroutineScope {
+                val data = weatherRepository.getTemperatureByDate(date, inputCountry.text.toString())
+                if (data != null) {
+                    averageTemperatures[date] = data.toFloat()
+                } else {
+                    averageTemperatures[date] = 0.0f
+                }
             }
         }
+        Log.d("HistoryActivity", "Average Temperatures: $averageTemperatures")
+        calculateAverageTemperature(averageTemperatures)
+    }
+
+    private fun calculateAverageTemperature(averageTemperatures: HashMap<String, Float>) {
+        var sum = 0.0f
+        for (temperature in averageTemperatures.values) {
+            sum += temperature
+        }
+        val avg = sum
+
+        val percentChange = ((temp!!.replace("°C", "").trim().toFloat() - avg) / avg) * 100
+
+        updateUI(weatherDataTextView, "Average temperature for the last 10 years: $avg°C \nCurrent temperature: $temp \nChange in temperature: $percentChange%")
     }
 
     private fun updateUI(textView: TextView, data: String) {

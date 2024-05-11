@@ -13,6 +13,6 @@ interface WeatherDao {
     @Query("SELECT * FROM weather_data")
     suspend fun getAllWeatherData(): List<WeatherData>
 
-    @Query("SELECT * FROM weather_data WHERE date = :date LIMIT 1")
-    suspend fun getWeatherDataByDate(date: String): WeatherData
+    @Query("SELECT temperature FROM weather_data WHERE date = :date AND location = :location")
+    suspend fun getTemperatureByDate(date: String, location: String): Double?
 }

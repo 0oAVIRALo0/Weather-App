@@ -62,6 +62,7 @@ class HomeActivity : AppCompatActivity() {
         searchButton.setOnClickListener {
             val intent = Intent(this, SearchActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.putExtra("currentTemp", temperature.text)
             startActivity(intent)
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
@@ -69,6 +70,7 @@ class HomeActivity : AppCompatActivity() {
         historyButton.setOnClickListener {
             val intent = Intent(this, HistoryActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.putExtra("currentTemp", temperature.text)
             startActivity(intent)
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }

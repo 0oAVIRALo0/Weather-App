@@ -68,6 +68,8 @@ class SearchActivity: AppCompatActivity() {
         searchActivityButton = findViewById(R.id.searchButton)
         historyButton = findViewById(R.id.historyButton)
 
+        val temp = intent.getStringExtra("currentTemp")
+
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
             updateUI(location, country)
@@ -100,6 +102,7 @@ class SearchActivity: AppCompatActivity() {
         historyButton.setOnClickListener {
             val intent = Intent(this, HistoryActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.putExtra("currentTemp", temp)
             startActivity(intent)
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
