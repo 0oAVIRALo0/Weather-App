@@ -5,8 +5,8 @@ class WeatherRepository(private val weatherDao: WeatherDao) {
         weatherDao.insertWeatherData(weatherData)
     }
 
-    suspend fun getAllWeatherData(): List<WeatherData> {
-        return weatherDao.getAllWeatherData()
+    suspend fun getAllWeatherData(location: String): List<WeatherData> {
+        return weatherDao.getAllWeatherData(location)
     }
 
     suspend fun getTemperatureByDate(date: String, location: String): Double? {

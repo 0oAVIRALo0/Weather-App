@@ -11,10 +11,12 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.weatherapp.currentWeather.currentWeather
 import com.example.weatherapp.database.WeatherData
 import com.example.weatherapp.database.WeatherDatabase
 import com.example.weatherapp.database.WeatherRepository
 import com.example.weatherapp.historicalWeather.historicalWeather
+import com.example.weatherapp.weatherFor10Years.weatherForEachYear
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +53,10 @@ class HistoryActivity: AppCompatActivity() {
     // Current Temperature
     private var temp: String? = null
 
+    // lat and long
+    private var latitude: Double? = null
+    private var longitude: Double? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.history)
@@ -65,14 +71,13 @@ class HistoryActivity: AppCompatActivity() {
         // database repository
         weatherRepository = WeatherRepository(WeatherDatabase.getInstance(this).weatherDao())
 
-        temp = intent.getStringExtra("currentTemp")
-
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
             val latLng = getLatLng(this, country)
-            val latitude = latLng.first
-            val longitude = latLng.second
-            getWeather(latitude, longitude, country)
+            latitude = latLng.first
+            longitude = latLng.second
+            getCurrentWeatherData(latitude!!, longitude!!)
+            getWeather(latitude!!, longitude!!, country)
         }
 
         homeButton.setOnClickListener {
@@ -112,6 +117,42 @@ class HistoryActivity: AppCompatActivity() {
             Log.e("HistoryActivity", "Geocoder error: ${e.message}")
         }
         return Pair(latitude, longitude)
+    }
+
+    private fun getCurrentWeatherData(latitude: Double, longitude: Double) {
+        val BASE_URL = "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
+
+        val coroutineScope = CoroutineScope(Dispatchers.Main)
+
+        coroutineScope.launch {
+            val request = Request.Builder()
+                .url(BASE_URL)
+                .build()
+
+            val client = OkHttpClient()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    Log.e("MainActivity", "Failed to get weather data: ${e.message}")
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && !body.isNullOrBlank()) {
+                        val weatherData = parseCurrentWeatherData(body)
+
+                        temp = weatherData.current.temperature_2m.toString() + "°C"
+                    } else {
+                        Log.e("MainActivity", "Failed to get weather data: ${response.message}")
+                    }
+                }
+            })
+        }
+    }
+
+    private fun parseCurrentWeatherData(tempBody: String): currentWeather {
+        val gson = Gson()
+        return gson.fromJson(tempBody, currentWeather::class.java)
     }
 
     private fun getWeather(latitude: Double, longitude: Double, country: String) {
@@ -179,7 +220,7 @@ class HistoryActivity: AppCompatActivity() {
     }
 
     private suspend fun plotGraph() {
-        weatherRepository.getAllWeatherData().let { weatherData ->
+        weatherRepository.getAllWeatherData(inputCountry.text.toString()).let { weatherData ->
             val entries = ArrayList<Entry>()
             for (i in weatherData.indices) {
                 entries.add(Entry(i.toFloat(), weatherData[i].temperature.toFloat()))
@@ -201,7 +242,7 @@ class HistoryActivity: AppCompatActivity() {
 
     }
 
-    private suspend fun getWeatherFor10Years() {
+    private fun getWeatherFor10Years() {
         val currentDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
         val sdf = SimpleDateFormat("yyyy-MM-dd")
         val c = Calendar.getInstance()
@@ -213,23 +254,54 @@ class HistoryActivity: AppCompatActivity() {
         val startYear = currentYear
         val endYear = currentYear - 10
 
+        val coroutineScope = CoroutineScope(Dispatchers.Main)
+
         // Loop through each year from the current year to 10 years ago
         val averageTemperatures = HashMap<String, Float>()
         for (year in endYear..startYear) {
             val date = "$year-" + previousDate.substring(5, 10)
-            Log.d("HistoryActivity", "Date: $date")
 
-            coroutineScope {
-                val data = weatherRepository.getTemperatureByDate(date, inputCountry.text.toString())
-                if (data != null) {
-                    averageTemperatures[date] = data.toFloat()
-                } else {
-                    averageTemperatures[date] = 0.0f
-                }
+            coroutineScope.launch {
+
+                val BASE_URL =
+                    "https://archive-api.open-meteo.com/v1/archive?latitude=$latitude&longitude=$longitude&start_date=$date&end_date=$date&daily=temperature_2m_mean&timezone=auto"
+
+                val request = Request.Builder()
+                    .url(BASE_URL)
+                    .build()
+
+                val client = OkHttpClient()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        Log.e("MainActivity", "Failed to get weather data: ${e.message}")
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && !body.isNullOrBlank()) {
+                            val weatherData = parseWeatherForEachYear(body)
+
+                            val avgTemp = weatherData.daily.temperature_2m_mean[0]
+                            averageTemperatures[date] = avgTemp.toFloat()
+                            Log.d("MainActivity", "Average temperature for $date: $avgTemp")
+
+                            if (averageTemperatures.size == 10) {
+                                calculateAverageTemperature(averageTemperatures)
+                            }
+                        } else {
+                            Log.e("MainActivity", "Failed to get weather data: ${response.message}")
+                        }
+                    }
+                })
             }
         }
-        Log.d("HistoryActivity", "Average Temperatures: $averageTemperatures")
-        calculateAverageTemperature(averageTemperatures)
+
+    }
+
+    private fun parseWeatherForEachYear(tempBody: String): weatherForEachYear {
+        val gson = Gson()
+        return gson.fromJson(tempBody, weatherForEachYear::class.java)
     }
 
     private fun calculateAverageTemperature(averageTemperatures: HashMap<String, Float>) {
@@ -237,11 +309,11 @@ class HistoryActivity: AppCompatActivity() {
         for (temperature in averageTemperatures.values) {
             sum += temperature
         }
-        val avg = sum
+        val avg = sum / 10
 
-        val percentChange = ((temp!!.replace("°C", "").trim().toFloat() - avg) / avg) * 100
+        val percentChange = ((temp!!.substring(0, temp!!.length - 2).toFloat() - avg) / avg) * 100
 
-        updateUI(weatherDataTextView, "Average temperature for the last 10 years: $avg°C \nCurrent temperature: $temp \nChange in temperature: $percentChange%")
+        updateUI(weatherDataTextView, "Average temperature for the last 10 years: $avg°C \nCurrent temperature: $temp  \nChange in temperature: $percentChange%")
     }
 
     private fun updateUI(textView: TextView, data: String) {
