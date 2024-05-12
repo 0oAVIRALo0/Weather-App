@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import java.util.Locale
 import android.location.Address;
 import android.os.PersistableBundle
+import android.widget.Toast
 import com.example.weatherapp.currentWeather.currentWeather
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ class SearchActivity: AppCompatActivity() {
     private lateinit var location: TextView
     private lateinit var weather: TextView
     private lateinit var weatherIcon: ImageView
+//    private lateinit var backgroundImage: ImageView
     private lateinit var tempMin: TextView
     private lateinit var tempMax: TextView
     private lateinit var homeButton: Button
@@ -62,6 +64,7 @@ class SearchActivity: AppCompatActivity() {
         location = findViewById(R.id.location)
         weather = findViewById(R.id.weather)
         weatherIcon = findViewById(R.id.weatherIcon)
+//        backgroundImage = findViewById(R.id.backgroundImage)
         tempMin = findViewById(R.id.minTemp)
         tempMax = findViewById(R.id.maxTemp)
         homeButton = findViewById(R.id.homeButton)
@@ -72,6 +75,12 @@ class SearchActivity: AppCompatActivity() {
 
         searchBut.setOnClickListener {
             val country = inputCountry.text.toString()
+
+            if (country.isEmpty()) {
+                showToast("Please enter a country")
+                return@setOnClickListener
+            }
+
             updateUI(location, country)
             val latLng = getLatLng(this, country)
             val latitude = latLng.first
@@ -128,40 +137,51 @@ class SearchActivity: AppCompatActivity() {
     }
 
     private fun getWeather(latitude: Double, longitude: Double){
-        val BASE_URL = "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
+        try {
+            val BASE_URL = "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
 
-        val coroutineScope = CoroutineScope(Dispatchers.Main)
+            val coroutineScope = CoroutineScope(Dispatchers.Main)
 
-        coroutineScope.launch {
-            val request = Request.Builder()
-                .url(BASE_URL)
-                .build()
+            coroutineScope.launch {
+                val request = Request.Builder()
+                    .url(BASE_URL)
+                    .build()
 
-            val client = OkHttpClient()
+                val client = OkHttpClient()
 
-            client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e("MainActivity", "Failed to get weather data: ${e.message}")
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && !body.isNullOrBlank()) {
-                        val weatherData = parseWeatherData(body)
-
-                        val temp = weatherData.current.temperature_2m
-                        val isDay = weatherData.current.is_day
-                        val minTemp = weatherData.daily.temperature_2m_min[0]
-                        val maxTemp = weatherData.daily.temperature_2m_max[0]
-                        updateUI(weather, "${temp}°C")
-                        updateUI(tempMin, "Min: ${minTemp}°C")
-                        updateUI(tempMax, "Max: ${maxTemp}°C")
-                        updateWeatherIcon(weatherIcon, isDay)
-                    } else {
-                        Log.e("MainActivity", "Failed to get weather data: ${response.message}")
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        Log.e("MainActivity", "Failed to get weather data: ${e.message}")
+                        runOnUiThread {
+                            showToast("Failed to get weather data: ${e.message}")
+                        }
                     }
-                }
-            })
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && !body.isNullOrBlank()) {
+                            val weatherData = parseWeatherData(body)
+
+                            val temp = weatherData.current.temperature_2m
+                            val isDay = weatherData.current.is_day
+                            val minTemp = weatherData.daily.temperature_2m_min[0]
+                            val maxTemp = weatherData.daily.temperature_2m_max[0]
+                            updateUI(weather, "${temp}°C")
+                            updateUI(tempMin, "Min: ${minTemp}°C")
+                            updateUI(tempMax, "Max: ${maxTemp}°C")
+                            updateWeatherIcon(weatherIcon, isDay)
+                        } else {
+                            Log.e("MainActivity", "Failed to get weather data: ${response.message}")
+                            runOnUiThread {
+                                showToast("Failed to get weather data: ${response.message}")
+                            }
+                        }
+                    }
+                })
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to get weather data: ${e.message}")
+            showToast("Failed to get weather data: ${e.message}")
         }
     }
 
@@ -180,9 +200,15 @@ class SearchActivity: AppCompatActivity() {
         runOnUiThread {
             if (value == 0) {
                 weatherIcon.setImageResource(R.drawable.night)
+//                backgroundImage.setImageResource(R.drawable.night_bg)
             } else {
                 weatherIcon.setImageResource(R.drawable.day)
+//                backgroundImage.setImageResource(R.drawable.sunny_bg)
             }
         }
+    }
+
+    private fun showToast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }

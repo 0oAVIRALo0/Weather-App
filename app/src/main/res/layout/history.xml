@@ -4,7 +4,9 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/background_gradient"
     tools:context=".HistoryActivity">
+
 
     <EditText
         android:id="@+id/inputCountry"
@@ -12,8 +14,11 @@
         android:layout_height="46dp"
         android:layout_marginTop="36dp"
         android:hint="Enter Country"
+        android:textColor="@color/white"
         app:layout_constraintEnd_toStartOf="@+id/searchBut"
         app:layout_constraintHorizontal_bias="0.5"
+        android:textColorHint="@color/white"
+        android:backgroundTint="@color/white"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
@@ -25,6 +30,7 @@
         android:text="Search"
         android:textSize="12sp"
         app:layout_constraintEnd_toEndOf="parent"
+        android:background="@drawable/button_background"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@+id/inputCountry"
         app:layout_constraintTop_toTopOf="parent" />
@@ -34,6 +40,7 @@
         android:layout_width="0dp"
         android:layout_height="300dp"
         android:layout_marginTop="56dp"
+        android:textColor="@color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
@@ -45,26 +52,31 @@
         android:id="@+id/weatherDataTextView"
         android:layout_width="377dp"
         android:layout_height="130dp"
+        android:layout_marginTop="44dp"
         android:gravity="center"
         android:text="Historical Data"
+        android:textColor="@color/white"
         app:layout_constraintBottom_toTopOf="@+id/view"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.47"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/graph" />
 
     <include
         layout="@layout/footer"
+        android:layout_width="368dp"
+        android:layout_height="50dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.492"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
-        app:layout_constraintBottom_toBottomOf="parent" />
-
-    <!-- Footer border -->
-    <View
-        android:id="@+id/view"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@android:color/darker_gray"
+        android:background="@drawable/rectangle_outline"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toTopOf="@id/footerLayout" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
